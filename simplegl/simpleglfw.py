@@ -21,6 +21,16 @@ cap = cv2.VideoCapture(0)
 REFERENCE_IMG = "cubemap-colored.jpg"
 MIN_MATCH_CT = 10
 
+def resizeMat(mat):
+    out_mat = np.identity(4)
+    for i in range(3):
+        for j in range(3):
+            out_mat[i][j] = mat[i][j]
+    out_mat[3][3] = 1
+    print(out_mat)
+    return out_mat
+    
+
 class Scene:    
     """ OpenGL 3D scene class"""
     # initialization
@@ -152,6 +162,9 @@ class Scene:
         frame = cv2.flip(frame, 0)
         height, width, _ = frame.shape
         transformMat = self.findFeature(frame)
+        if transformMat is not None:
+            transformMat = resizeMat(transformMat)
+            print(transformMat.shape)
         glBindTexture(GL_TEXTURE_2D, self.texId)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height,
                      0, GL_RGB, GL_UNSIGNED_BYTE, frame)
@@ -172,30 +185,33 @@ class Scene:
 
         glBindVertexArray(0)
 
-        # use shader
-        glUseProgram(self.program)
-        
-        # set proj matrix
-        glUniformMatrix4fv(self.pMatrixUniform, 1, GL_FALSE, pMatrix)
+        if transformMat is not None:
+            # use shader
+            glUseProgram(self.program)
+            
+            # set proj matrix
+            glUniformMatrix4fv(self.pMatrixUniform, 1, GL_FALSE, pMatrix)
 
-        # set modelview matrix
-        glUniformMatrix4fv(self.mvMatrixUniform, 1, GL_FALSE, mvMatrix)
+            # set modelview matrix
+            outMat = np.matmul(transformMat, mvMatrix)
+            glUniformMatrix4fv(self.mvMatrixUniform, 1, GL_FALSE, outMat)
+            #glUniformMatrix4fv(self.mvMatrixUniform, 1, GL_FALSE, mvMatrix)
 
-        # show circle? 
-        glUniform1i(glGetUniformLocation(self.program, b'showCircle'), 
-                    self.showCircle)
+            # show circle? 
+            glUniform1i(glGetUniformLocation(self.program, b'showCircle'), 
+                        self.showCircle)
 
-        # enable texture 
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, self.texId)
-        glUniform1i(self.tex2D, 0)
+            # enable texture 
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, self.texId)
+            glUniform1i(self.tex2D, 0)
 
-        # bind VAO
-        glBindVertexArray(self.vao)
-        # draw 
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 14)
-        # unbind VAO
-        glBindVertexArray(0)
+            # bind VAO
+            glBindVertexArray(self.vao)
+            # draw 
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 14)
+            # unbind VAO
+            glBindVertexArray(0)
 
 
 class RenderWindow:
