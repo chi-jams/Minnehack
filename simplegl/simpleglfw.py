@@ -10,13 +10,16 @@ Author: Mahesh Venkitachalam
 import OpenGL
 from OpenGL.GL import *
 
-import numpy, math, sys, os
+import math, sys, os
+import numpy as np
 import glutils
 
 import glfw
 import cv2
 
 cap = cv2.VideoCapture(0)
+REFERENCE_IMG = "cubemap-colored.jpg"
+MIN_MATCH_CT = 10
 
 class Scene:    
     """ OpenGL 3D scene class"""
@@ -54,7 +57,7 @@ class Scene:
         self.tex2D = glGetUniformLocation(self.program, b'tex2D')
         
         # define triange strip vertices 
-        vertexData = numpy.array(
+        vertexData = np.array(
             [-0.5, 0.5, 0.5, 
               0.5, 0.5, 0.5, 
               -0.5, -0.5, 0.5,
@@ -68,7 +71,7 @@ class Scene:
               -0.5,-0.5,-0.5,
               0.5,-0.5,-0.5,
               -0.5,0.5,-0.5,
-              0.5,0.5,-0.5], numpy.float32)
+              0.5,0.5,-0.5], np.float32)
 
         # set up vertex array object (VAO)
         self.vao = glGenVertexArrays(1)
@@ -102,6 +105,16 @@ class Scene:
         # show circle?
         self.showCircle = False
         
+        ## opencv stuff
+        self.sift = cv2.xfeatures2d.SIFT_create()
+        ref_img = cv2.imread(REFERENCE_IMG, 0) 
+        self.ref_kp, self.ref_des = self.sift.detectAndCompute(ref_img, None)
+
+        FLANN_INDEX_KDTREE = 0
+        index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+        search_params = dict(checks = 50)
+        self.flann = cv2.FlannBasedMatcher(index_params, search_params)
+        
     # step
     def step(self):
         # increment angle
@@ -110,12 +123,33 @@ class Scene:
         #glUniform1f(glGetUniformLocation(self.program, 'uTheta'), 
         #            math.radians(self.t))
 
+    def findFeature(self, frame):
+        grey = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        tkp, tdes = self.sift.detectAndCompute(grey, None)
+        matches = self.flann.knnMatch(self.ref_des, tdes, k=2)
+
+        good = []
+        for m,n in matches:
+            if m.distance < 0.7 * n.distance:
+                good.append(m)
+
+        if len(good) > MIN_MATCH_CT:
+            src_pts = np.float32([ self.ref_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+            dst_pts = np.float32([ tkp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+            
+            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+            matchesMask = mask.ravel().tolist()
+            print(M)
+
+            #h, w = self.ref_img
+        
     # render 
     def render(self, pMatrix, mvMatrix):        
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = cv2.flip(frame, 0)
         height, width, _ = frame.shape
+        self.findFeature(frame)
         glBindTexture(GL_TEXTURE_2D, self.texId)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height,
                      0, GL_RGB, GL_UNSIGNED_BYTE, frame)
@@ -123,8 +157,7 @@ class Scene:
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height,
                      0, GL_RGB, GL_UNSIGNED_BYTE, frame)
         glBindTexture(GL_TEXTURE_2D, 0)
-
-        # Draw camera footage
+         # Draw camera footage
         glUseProgram(self.bkpgm)
         
         glActiveTexture(GL_TEXTURE0)
@@ -193,7 +226,8 @@ class RenderWindow:
         
         # initialize GL
         glViewport(0, 0, self.width, self.height)
-        glEnable(GL_DEPTH_TEST)
+        #glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_NEVER)
         glClearColor(0.5, 0.5, 0.5,1.0)
 
         # set window callbacks
