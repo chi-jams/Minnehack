@@ -31,7 +31,7 @@ class Scene:
             fShader = src.read()
 
         self.program = glutils.loadShaders(vShader, fShader)
-
+      
         self.bkpgm = glutils.loadShaders(*[open("shaders/bkgnd.%s.glsl"%i, "r").read() for i in "vf"])
         self.backTex = glGetUniformLocation(self.bkpgm, b'tex2D')
         self.bkId = glutils.loadTexture('star.png')
@@ -52,13 +52,23 @@ class Scene:
                                                   b'uMVMatrix')
         # texture 
         self.tex2D = glGetUniformLocation(self.program, b'tex2D')
-
+        
         # define triange strip vertices 
         vertexData = numpy.array(
-            [-0.5, -0.5, 0.0, 
-              0.5, -0.5, 0.0, 
-              -0.5, 0.5, 0.0,
-              0.5, 0.5, 0.0], numpy.float32)
+            [-0.5, 0.5, 0.5, 
+              0.5, 0.5, 0.5, 
+              -0.5, -0.5, 0.5,
+              0.5, -0.5, 0.5,
+              0.5, -0.5, -0.5,
+              0.5, 0.5, 0.5,
+              0.5,0.5,-0.5,
+              -0.5,0.5,0.5,
+              -0.5,0.5,-0.5,
+              -0.5,-0.5,0.5,
+              -0.5,-0.5,-0.5,
+              0.5,-0.5,-0.5,
+              -0.5,0.5,-0.5,
+              0.5,0.5,-0.5], numpy.float32)
 
         # set up vertex array object (VAO)
         self.vao = glGenVertexArrays(1)
@@ -67,7 +77,7 @@ class Scene:
         self.vertexBuffer = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, self.vertexBuffer)
         # set buffer data 
-        glBufferData(GL_ARRAY_BUFFER, 4*len(vertexData), vertexData, 
+        glBufferData(GL_ARRAY_BUFFER, 14*len(vertexData), vertexData, 
                      GL_STATIC_DRAW)
         # enable vertex array
         glEnableVertexAttribArray(0)
@@ -97,8 +107,8 @@ class Scene:
         # increment angle
         self.t = (self.t + 1) % 360
         # set shader angle in radians
-        glUniform1f(glGetUniformLocation(self.program, 'uTheta'), 
-                    math.radians(self.t))
+        #glUniform1f(glGetUniformLocation(self.program, 'uTheta'), 
+        #            math.radians(self.t))
 
     # render 
     def render(self, pMatrix, mvMatrix):        
@@ -148,7 +158,7 @@ class Scene:
         # bind VAO
         glBindVertexArray(self.vao)
         # draw
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 14)
         # unbind VAO
         glBindVertexArray(0)
 
@@ -235,7 +245,7 @@ class RenderWindow:
                 # build projection matrix
                 pMatrix = glutils.perspective(45.0, self.aspect, 0.1, 100.0)
                 
-                mvMatrix = glutils.lookAt([0.0, 0.0, -2.0], [0.0, 0.0, 0.0],
+                mvMatrix = glutils.lookAt([3.0*math.sin(glfw.glfwGetTime()), 0.0, 3.0*math.cos(glfw.glfwGetTime())], [0.0, 0.0, 0.0],
                                           [0.0, 1.0, 0.0])
                 # render
                 self.scene.render(pMatrix, mvMatrix)
